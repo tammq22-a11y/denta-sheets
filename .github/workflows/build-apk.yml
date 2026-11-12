@@ -23,24 +23,36 @@ jobs:
         uses: gradle/actions/setup-gradle@v4
 
       - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
+        uses: android-actions/setup-android@v4
+        with:
+          packages: platform-tools
 
       - name: Install SDK
-        run: sdkmanager 'platforms;android-35' 'build-tools;35.0.0'
+        run: |
+          sdkmanager "platforms;android-35" "build-tools;35.0.0"
 
       - name: Extract project
         run: |
-          mkdir project
+          mkdir -p project
           unzip -q denta-sheets-project.zip -d project
-          find project -name settings.gradle -print
+          find project -name settings.gradle -o -name settings.gradle.kts
 
       - name: Build APK
         run: |
-          cd project
-          gradle assembleDebug
+          PROJECT_DIR=$(dirname "$(find "$GITHUB_WORKSPACE/project" -name settings.gradle -o -name settings.gradle.kts | head -n 1)")
+
+          cd "$PROJECT_DIR"
+
+          if [ -f gradlew ]; then
+            chmod +x gradlew
+            ./gradlew assembleDebug
+          else
+            gradle assembleDebug
+          fi
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: DenTA-Sheets-APK
-          path: project/app/build/outputs/apk/debug/*.apk
+          path: project/**/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
