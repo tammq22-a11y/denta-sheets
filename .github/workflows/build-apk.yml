@@ -1,6 +1,6 @@
 name: Build DenTA APK
 
-on:
+"on":
 workflow_dispatch:
 push:
 branches:
@@ -37,28 +37,24 @@ steps:
   - name: Check and Extract Project
     run: |
       test -f denta-sheets-project.zip || {
-        echo "ERROR: denta-sheets-project.zip not found!"
+        echo "ERROR: Project ZIP not found"
         exit 1
       }
-
       mkdir -p project
       unzip -q denta-sheets-project.zip -d project
 
   - name: Locate Android Project
     id: project
     run: |
-      SETTINGS_FILE=$(find "$GITHUB_WORKSPACE/project" \
-        -name settings.gradle -o -name settings.gradle.kts \
-        -print -quit)
+      SETTINGS_FILE=$(find "$GITHUB_WORKSPACE/project" -name settings.gradle -o -name settings.gradle.kts -print -quit)
 
       if [ -z "$SETTINGS_FILE" ]; then
-        echo "ERROR: Gradle settings file not found!"
+        echo "ERROR: Gradle settings file not found"
         exit 1
       fi
 
       PROJECT_DIR=$(dirname "$SETTINGS_FILE")
       echo "dir=$PROJECT_DIR" >> "$GITHUB_OUTPUT"
-      echo "Android project: $PROJECT_DIR"
 
   - name: Build Debug APK
     working-directory: ${{ steps.project.outputs.dir }}
