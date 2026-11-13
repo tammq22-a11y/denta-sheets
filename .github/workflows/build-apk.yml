@@ -1,58 +1,79 @@
 name: Build DenTA APK
 
 on:
-  workflow_dispatch:
-  push:
-    branches: [main]
+workflow_dispatch:
+push:
+branches:
+- main
+
+permissions:
+contents: read
 
 jobs:
-  build:
-    runs-on: ubuntu-latest
+build:
+name: Build Android APK
+runs-on: ubuntu-latest
 
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+steps:
+  - name: Checkout
+    uses: actions/checkout@v4
 
-      - name: Setup Java
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '17'
+  - name: Setup Java
+    uses: actions/setup-java@v4
+    with:
+      distribution: temurin
+      java-version: '17'
 
-      - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v4
+  - name: Setup Gradle
+    uses: gradle/actions/setup-gradle@v4
 
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v4
-        with:
-          packages: platform-tools
+  - name: Setup Android SDK
+    uses: android-actions/setup-android@v4
 
-      - name: Install SDK
-        run: |
-          sdkmanager "platforms;android-35" "build-tools;35.0.0"
+  - name: Install Android SDK
+    run: |
+      sdkmanager "platform-tools" "platforms;android-35" "build-tools;35.0.0"
 
-      - name: Extract project
-        run: |
-          mkdir -p project
-          unzip -q denta-sheets-project.zip -d project
-          find project -name settings.gradle -o -name settings.gradle.kts
+  - name: Check and Extract Project
+    run: |
+      test -f denta-sheets-project.zip || {
+        echo "ERROR: denta-sheets-project.zip not found!"
+        exit 1
+      }
 
-      - name: Build APK
-        run: |
-          PROJECT_DIR=$(dirname "$(find "$GITHUB_WORKSPACE/project" -name settings.gradle -o -name settings.gradle.kts | head -n 1)")
+      mkdir -p project
+      unzip -q denta-sheets-project.zip -d project
 
-          cd "$PROJECT_DIR"
+  - name: Locate Android Project
+    id: project
+    run: |
+      SETTINGS_FILE=$(find "$GITHUB_WORKSPACE/project" \
+        -name settings.gradle -o -name settings.gradle.kts \
+        -print -quit)
 
-          if [ -f gradlew ]; then
-            chmod +x gradlew
-            ./gradlew assembleDebug
-          else
-            gradle assembleDebug
-          fi
+      if [ -z "$SETTINGS_FILE" ]; then
+        echo "ERROR: Gradle settings file not found!"
+        exit 1
+      fi
 
-      - name: Upload APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: DenTA-Sheets-APK
-          path: project/**/build/outputs/apk/debug/*.apk
-          if-no-files-found: error
+      PROJECT_DIR=$(dirname "$SETTINGS_FILE")
+      echo "dir=$PROJECT_DIR" >> "$GITHUB_OUTPUT"
+      echo "Android project: $PROJECT_DIR"
+
+  - name: Build Debug APK
+    working-directory: ${{ steps.project.outputs.dir }}
+    run: |
+      if [ -f gradlew ]; then
+        chmod +x gradlew
+        ./gradlew --no-daemon assembleDebug
+      else
+        gradle --no-daemon assembleDebug
+      fi
+
+  - name: Upload APK
+    uses: actions/upload-artifact@v4
+    with:
+      name: Denta-Hub-APK
+      path: ${{ steps.project.outputs.dir }}/**/build/outputs/apk/debug/*.apk
+      if-no-files-found: error
+      retention-days: 14
